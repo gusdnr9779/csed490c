@@ -59,6 +59,7 @@
  */
 
 #include <cuda.h>
+#include <assert.h>
 #include "../common/npb-CPP.hpp"
 #include "npbparams.hpp"
 
@@ -74,15 +75,23 @@
 #define RECOMPUTATION (128)
 #define PROFILING_TOTAL_TIME (0)
 
+#define cudaCheckError() {                                          \
+ cudaError_t e=cudaGetLastError();                                 \
+ if(e!=cudaSuccess) {                                              \
+   printf("Cuda failure %s:%d: '%s'\n",__FILE__,__LINE__,cudaGetErrorString(e));           \
+   exit(0); \
+ }                                                                 \
+}
+
 /* global variables */
 #if defined(DO_NOT_ALLOCATE_ARRAYS_WITH_DYNAMIC_MEMORY_AND_AS_SINGLE_DIMENSION)
-static double q[NQ];
+static int q[NQ];
 #else
-static double (*q)=(double*)malloc(sizeof(double)*(NQ));
+static long long (*q)=(long long*)malloc(sizeof(long long)*(NQ));
 #endif
 /* gpu variables */
-double* q_host;
-double* q_device;
+int* q_host;
+int* q_device;
 double* sx_host;
 double* sx_device;
 double* sy_host;
@@ -97,7 +106,7 @@ int total_devices;
 cudaDeviceProp gpu_device_properties;
 
 /* function declarations */
-__global__ void gpu_kernel(double* q_device, 
+__global__ void gpu_kernel(int* q_device, 
 		double* sx_device, 
 		double* sy_device,
 		double an);
@@ -119,7 +128,8 @@ int main(int argc, char** argv){
 	printf(" PROFILING mode on\n");
 #endif
 	double Mops, t1;
-	double sx, sy, tm, an, gc;
+	double sx, sy, tm, an;
+	long long gc;
 	double sx_verify_value, sy_verify_value, sx_err, sy_err;
 	int i, j, nit, block;
 	boolean verified;
@@ -149,12 +159,12 @@ int main(int argc, char** argv){
 	}
 
 	an = t1;
-	gc = 0.0;
+	gc = 0;
 	sx = 0.0;
 	sy = 0.0;
 
 	for(i=0; i<NQ; i++){
-		q[i] = 0.0;
+		q[i] = 0;
 	}
 
 	setup_gpu();
@@ -184,7 +194,7 @@ int main(int argc, char** argv){
 	}
 	for(i=0; i<NQ; i++){
 		gc+=q[i];
-	}				
+	}
 
 	nit = 0;
 	verified = TRUE;
@@ -222,11 +232,11 @@ int main(int argc, char** argv){
 	printf("\n EP Benchmark Results:\n\n");
 	printf(" CPU Time =%10.4f\n", tm);
 	printf(" N = 2^%5d\n", M);
-	printf(" No. Gaussian Pairs = %15.0f\n", gc);
+	printf(" No. Gaussian Pairs = %15.0lld\n", gc);
 	printf(" Sums = %25.15e %25.15e\n", sx, sy);
 	printf(" Counts: \n");
 	for(i=0; i<NQ; i++){
-		printf("%3d%15.0f\n", i, q[i]);
+		printf("%3d%15.0lld\n", i, q[i]);
 	}
 
 	char gpu_config[256];
@@ -273,26 +283,26 @@ int main(int argc, char** argv){
 	return 0;
 }
 
-__global__ void gpu_kernel(double* q_global, 
+__global__ void gpu_kernel(int* q_global, 
 		double* sx_global, 
 		double* sy_global,
 		double an){	
 	double x_local[2*RECOMPUTATION];
-	double q_local[NQ]; 
+	int q_local[NQ]; 
 	double sx_local, sy_local;
 	double t1, t2, t3, t4, x1, x2, seed;
 	int i, ii, ik, kk, l;
 
-	q_local[0]=0.0;
-	q_local[1]=0.0;
-	q_local[2]=0.0;
-	q_local[3]=0.0;
-	q_local[4]=0.0;
-	q_local[5]=0.0;
-	q_local[6]=0.0;
-	q_local[7]=0.0;
-	q_local[8]=0.0;
-	q_local[9]=0.0;
+	q_local[0]=0;
+	q_local[1]=0;
+	q_local[2]=0;
+	q_local[3]=0;
+	q_local[4]=0;
+	q_local[5]=0;
+	q_local[6]=0;
+	q_local[7]=0;
+	q_local[8]=0;
+	q_local[9]=0;
 	sx_local=0.0;
 	sy_local=0.0;	
 
@@ -331,7 +341,7 @@ __global__ void gpu_kernel(double* q_global,
 				t3=(x1*t2);
 				t4=(x2*t2);
 				l=max(fabs(t3), fabs(t4));
-				q_local[l]+=1.0;
+				q_local[l]+=1;
 				sx_local+=t3;
 				sy_local+=t4;
 			}
@@ -350,24 +360,6 @@ __global__ void gpu_kernel(double* q_global,
 	atomicAdd(q_global+blockIdx.x*NQ+9, q_local[9]); 
 	atomicAdd(sx_global+blockIdx.x, sx_local); 
 	atomicAdd(sy_global+blockIdx.x, sy_local);
-}
-
-__device__ double randlc_device(double* x, 
-		double a){
-	double t1,t2,t3,t4,a1,a2,x1,x2,z;
-	t1 = R23 * a;
-	a1 = (int)t1;
-	a2 = a - T23 * a1;
-	t1 = R23 * (*x);
-	x1 = (int)t1;
-	x2 = (*x) - T23 * x1;
-	t1 = a1 * x2 + a2 * x1;
-	t2 = (int)(R23 * t1);
-	z = t1 - T23 * t2;
-	t3 = T23 * z + a2 * x2;
-	t4 = (int)(R46 * t3);
-	(*x) = t3 - T46 * t4;
-	return (R46 * (*x));
 }
 
 static void release_gpu(){
@@ -433,17 +425,35 @@ static void setup_gpu(){
 
 	blocks_per_grid = (ceil((double)NN/(double)threads_per_block));
 
-	size_q = blocks_per_grid * NQ * sizeof(double);
+	size_q = blocks_per_grid * NQ * sizeof(int);
 	size_sx = blocks_per_grid * sizeof(double);
 	size_sy = blocks_per_grid * sizeof(double);
 
-	q_host=(double*)malloc(size_q);	
+	q_host=(int*)malloc(size_q);	
 	sx_host=(double*)malloc(size_sx);
 	sy_host=(double*)malloc(size_sy);
 
 	cudaMalloc(&q_device, size_q);
 	cudaMalloc(&sx_device, size_sx);
 	cudaMalloc(&sy_device, size_sy);
+}
+
+__device__ double randlc_device(double* x, 
+		double a){
+	double t1,t2,t3,t4,a1,a2,x1,x2,z;
+	t1 = R23 * a;
+	a1 = (int)t1;
+	a2 = a - T23 * a1;
+	t1 = R23 * (*x);
+	x1 = (int)t1;
+	x2 = (*x) - T23 * x1;
+	t1 = a1 * x2 + a2 * x1;
+	t2 = (int)(R23 * t1);
+	z = t1 - T23 * t2;
+	t3 = T23 * z + a2 * x2;
+	t4 = (int)(R46 * t3);
+	(*x) = t3 - T46 * t4;
+	return (R46 * (*x));
 }
 
 __device__ void vranlc_device(int n, 
