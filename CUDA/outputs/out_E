@@ -2,37 +2,37 @@
 
  NAS Parallel Benchmarks 4.1 CUDA C++ version - EP Benchmark
 
- Number of random numbers generated:    137438953472
+ Number of random numbers generated:   2199023255552
 
  EP Benchmark Results:
 
- CPU Time =   13.7669
- N = 2^   36
- No. Gaussian Pairs =               1
- Sums =    -3.304417371749878e+00     0.000000000000000e+00
+ CPU Time =  189.8305
+ N = 2^   40
+ No. Gaussian Pairs =    863554308186
+ Sums =    -5.319717441534242e+05    -3.688834557746605e+05
  Counts: 
-  0              0
-  1              0
-  2              0
-  3              1
-  4              0
-  5              0
-  6              0
-  7              0
-  8              0
-  9              0
+  0   402472491787
+  1   384285547773
+  2    72139715664
+  3     4547154685
+  4      108408570
+  5         986325
+  6           3374
+  7              8
+  8               
+  9               
 
 
  EP Benchmark Completed
- class_npb       =                        D
- Size            =             137438953472
+ class_npb       =                        E
+ Size            =            2199023255552
  Iterations      =                        0
- Time in seconds =                    13.77
- Mop/s total     =                  9983.33
+ Time in seconds =                   189.83
+ Mop/s total     =                 11584.14
  Operation type  = Random numbers generated
- Verification    =             UNSUCCESSFUL
+ Verification    =               SUCCESSFUL
  Version         =                      4.1
- Compile date    =              07 Dec 2023
+ Compile date    =              09 Dec 2023
  NVCC version    =                 12.3.103
  CUDA version    =                 12.3.103
 
